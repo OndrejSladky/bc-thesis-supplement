@@ -42,9 +42,8 @@ Indexing, membership queries, and set operations on k-mer sets represented via f
   online](ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz))
   - [data/yeast.fa.xz](data/yeast.fa.xz)
 * *E. coli* pan-genome, obtained as the union of the genomes from the [661k collection](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3001421), downloaded from [Phylogenetically compressed 661k collection](https://zenodo.org/records/4602622)
-  - *k*-mers were collected and stored in the form of unitigs with $k = 32$ (BCALM 2, version v2.2.3, git commit e57cc46)
-  - not provided in this repository due to file size (ask [@PavelVesely](https://github.com/PavelVesely) if you wish to get this dataset)
-    [data/spneumo_pangenome_k32.fa.xz](data/spneumo_pangenome_k32.fa.xz)
+  - *k*-mers were collected and stored in the form of unitigs with $k = 32$ and $k=64$ (BCALM 2, version v2.2.3, git commit e57cc46)
+  - not provided in this repository due to file size (ask if you wish to get this dataset)
 * *SARS-CoV-2* pan-genome - downloaded from [GISAID](https://gisaid.org/)
   (access upon registration) on Jan 25, 2023 (GISAID version 2023_01_23,
   14,682,066 genomes, 430 Gbp)
@@ -53,6 +52,8 @@ Indexing, membership queries, and set operations on k-mer sets represented via f
     22,423,416 bp, #kmers: 11,701,570 32-mers)
   - The resulting file:
     [data/sars-cov-2_pangenome_k32.fa.xz](data/sars-cov-2_pangenome_k32.fa.xz)
+* Human genome (`GRCh38.p14`, genome length 3.1 Gbp) 
+  - not provided in this repository due to file size (ask if you wish to get this dataset)
 * *C. elegans* (`NC_003279.8`) - downloaded from [NCBI](https://www.ncbi.nlm.nih.gov)
   - [data/C.elegans.fna.xz](data/C.elegans.fna.xz)
 * *C. briggsae* (`NC_013489.2`) - downloaded from [NCBI](https://www.ncbi.nlm.nih.gov)
