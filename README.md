@@ -1,5 +1,19 @@
 # Supplementary repository of Ondřej Sladký's bachelor's thesis
 
+
+* [Introduction](#introduction)
+  * [Citation](#citation)
+* [Methods](#methods)
+  * [Masked superstring computation - KmerCamel🐫](#masked-superstrings-computation---kmercamel)
+  * [Indexing masked superstrings - FMSI](#indexing-masked-superstrings---fmsi)
+* [Experimental evaluation](#experimental-evaluation)
+  * [Benchmark datasets](#benchmark-datasets)
+  * [Reproducing experimental results](#reproducing-experimental-results)
+* [Figures + supplementary plots](#figures--supplementary-plots)
+* [Contact](#contact)
+
+## Introduction
+
 This repository contains links to all the supplementary material for my bachelor's thesis, i.e., experimental pipelines and results and individual plots.
 
 The thesis is based on two arcitles, consider also visiting their respective supplementary repositories.
@@ -7,7 +21,7 @@ The thesis is based on two arcitles, consider also visiting their respective sup
 - Paper I: [Masked superstrings as a unified framework for textual *k*-mer set representations](https://doi.org/10.1101/2023.02.01.526717) - [supplementary repository](https://github.com/karel-brinda/masked-superstrings-supplement)
 - Paper II: [Function-Assigned Masked Superstrings as a Versatile and Compact Data Type for *k*-Mer Sets](https://doi.org/10.1101/2024.03.06.583483) - [supplementary repository](https://github.com/OndrejSladky/f-masked-superstrings-supplement)
 
-## Citation
+### Citation
 
 Coming soon!
 
@@ -22,7 +36,7 @@ Additionally, these masks can be optimized by KmerCamel🐫 to either contain th
 
 Importantly, changes in the underlying data structures (hash-table vs. AC automaton), as well as changing machines or compilers, results/may result in different superstrings and their mask, and the specific choices can affect mask compressibility. For instance, hash-table-based approaches tend to produce more regular masks that are better compressible (e.g., for nearly complete de Bruijn graphs).
 
-### Indexing masked superstrings with FMSI
+### Indexing masked superstrings - FMSI
 
 Indexing, membership queries, and set operations on k-mer sets represented via f-masked superstrings was performed and benchmarked on [FMSI](https://github.com/OndrejSladky/fmsi), which experimentaly implements membership queries as well as several basic operations on indexed masked superstrings such as normalization, export and merging, which can be used to perform set operations.
 
