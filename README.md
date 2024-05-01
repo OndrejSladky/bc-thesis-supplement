@@ -28,6 +28,41 @@ Indexing, membership queries, and set operations on k-mer sets represented via f
 
 ## Experimental evaluation
 
+### Benchmark datasets
+* *S. pneumoniae* genome (ATCC 700669, NC_011900.1, [fna
+  online](https://www.ncbi.nlm.nih.gov/nuccore/NC_011900.1?report=fasta&log$=seqview&format=text))
+  - The resulting file: [data/spneumoniae.fa.xz](data/spneumoniae.fa.xz)
+* *S. pneumoniae* pan-genome - 616 genomes, as provided in [RASE DB *S.
+  pneumoniae*](https://github.com/c2-d2/rase-db-spneumoniae-sparc/)
+  - *k*-mers were collected and stored in the form of simplitigs (ProphAsm
+    v0.1.1, k=32, NS: 158,567, CL: 14,710,895 bp, #kmers: 9,795,318 32-mers)
+  - The resulting file:
+    [data/spneumo_pangenome_k32.fa.xz](data/spneumo_pangenome_k32.fa.xz)
+* *S. cerevisiae* genome (S288C, [fna.gz
+  online](ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz))
+  - [data/yeast.fa.xz](data/yeast.fa.xz)
+* *E. coli* pan-genome, obtained as the union of the genomes from the [661k collection](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3001421), downloaded from [Phylogenetically compressed 661k collection](https://zenodo.org/records/4602622)
+  - *k*-mers were collected and stored in the form of unitigs with $k = 32$ (BCALM 2, version v2.2.3, git commit e57cc46)
+  - not provided in this repository due to file size (ask [@PavelVesely](https://github.com/PavelVesely) if you wish to get this dataset)
+    [data/spneumo_pangenome_k32.fa.xz](data/spneumo_pangenome_k32.fa.xz)
+* *SARS-CoV-2* pan-genome - downloaded from [GISAID](https://gisaid.org/)
+  (access upon registration) on Jan 25, 2023 (GISAID version 2023_01_23,
+  14,682,066 genomes, 430 Gbp)
+  - *k*-mers were collected using JellyFish 2 (v2.2.10, 11,701,570 32-mers) and
+    stored in the form of simplitigs (ProphAsm v0.1.1, k=32, NS: 345,866, CL:
+    22,423,416 bp, #kmers: 11,701,570 32-mers)
+  - The resulting file:
+    [data/sars-cov-2_pangenome_k32.fa.xz](data/sars-cov-2_pangenome_k32.fa.xz)
+* *C. elegans* (`NC_003279.8`) - downloaded from [NCBI](https://www.ncbi.nlm.nih.gov)
+  - [data/C.elegans.fna.xz](data/C.elegans.fna.xz)
+* *C. briggsae* (`NC_013489.2`) - downloaded from [NCBI](https://www.ncbi.nlm.nih.gov)
+  - [data/C.briggsae.fna.xz](data/C.briggsae.fna.xz)
+
+For generating negative membership queries to these datasets, we used a 2MB prefix of the FASTA file for chromosome 1 of *H. sapiens* genome (`GRCh38.p14 Primary Assembly`, `NC_000001.11`), downloaded from [NCBI](https://www.ncbi.nlm.nih.gov); see  [data/GRCh38.p14.chromosome1.prefix2M.fasta.xz](data/GRCh38.p14.chromosome1.prefix2M.fasta.xz)
+
+
 ## Figures + supplementary plots
 
 ## Contact
+
+Ondřej Sladký (ondra.sladky@gmail.com)
