@@ -4,8 +4,8 @@ This repository contains links to all the supplementary material for my bachelor
 
 The thesis is based on two arcitles, consider also visiting their respective supplementary repositories.
 
-- [Masked superstrings as a unified framework for textual *k*-mer set representations](https://doi.org/10.1101/2023.02.01.526717) - [supplementary repository](https://github.com/karel-brinda/masked-superstrings-supplement)
-- [Function-Assigned Masked Superstrings as a Versatile and Compact Data Type for *k*-Mer Sets](https://doi.org/10.1101/2024.03.06.583483) - [supplementary repository](https://github.com/OndrejSladky/f-masked-superstrings-supplement)
+- Paper I: [Masked superstrings as a unified framework for textual *k*-mer set representations](https://doi.org/10.1101/2023.02.01.526717) - [supplementary repository](https://github.com/karel-brinda/masked-superstrings-supplement)
+- Paper II: [Function-Assigned Masked Superstrings as a Versatile and Compact Data Type for *k*-Mer Sets](https://doi.org/10.1101/2024.03.06.583483) - [supplementary repository](https://github.com/OndrejSladky/f-masked-superstrings-supplement)
 
 ## Citation
 
