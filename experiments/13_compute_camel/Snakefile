@@ -1,0 +1,557 @@
+import socket
+
+shell.prefix("set -euo pipefail")
+
+
+configfile: "config.yaml"
+
+
+HOSTNAME = socket.gethostname()
+if HOSTNAME == "":
+    HOSTNAME = "NA"
+print(HOSTNAME)
+
+CAMEL = "kmercamel/kmercamel"
+CAMEL_LARGE = "kmercamel/kmercamel-large"
+
+#DEFAULT_MS_RAW_DIR = "/nfs/archive/vesely/25-10-MS_default_raw/" # default: "10_masked_superstrings/" # these could be large files (e.g. for human genome or minikrakens), but can't be stored compressed as kmercamel optimize currently requires two passes
+MS_DIR = "/nfs/archive/vesely/25-10_masked_superstrings/" # default: "10_masked_superstrings/"
+CAMEL_OUTPUT_DIR = "/nfs/archive/vesely/25-01_camel_output/" # default: "01_camel_output/" # PV: to save some space
+
+#####################################################################
+#####################################################################
+############### ONE EXPERIMENT TO RULE THEM ALL #####################
+#####################################################################
+#####################################################################
+# Notes:
+#   - so far, subsampled datasets are not involved
+#   - for superstring compression, we just use xz (could be interesting to compare to bzip2)
+#   - !!!! set memory and time limits (ideally based on the dataset used) !!!
+
+D_VALS = range(1, 6)
+D_VALS_KRAK8 = range(1, 4) # for minikraken8GB
+# setup for pangenomes
+K_VALS = list(range(8,24)) # [9,11,13,15,17,19,21,23,31]
+K_VALS.append(31)
+# NOTE: values of k > 31 only for human (for bacterial pangenomes, one would need to recompute unitigs with k = 64)
+K_VALS_HG = [9,11,13,15,17,19,21,23,31,61] # values of k for the human genome -- incl. one large value of k = 61
+K_VALS_KRAK = [31] # values of k for minikraken
+S_ALGS = ["global", "local"] #, "globalAC", "localAC", "streaming", 
+M_ALGS = ["default", "ones", "runs", "zeros", "runsapprox"]
+M_ALGS_HG = ["default", "ones", "zeros", "runsapprox"] # # do not attempt to optimize runs for human #PV: tmp: adding runs, but will check whether or not it's computed
+M_ALGS_KRAK = ["default", "ones", "zeros", "runs", "runsapprox"] # optimize just ones for minikraken #PV: tmp: adding runs, but will check whether or not it's computed
+GENOMES = ["spneumoniae", "spneumoniae-pangenome", "yeast", "sars-cov-2-pangenome", \
+    "escherichia_coli.k32", "salmonella_enterica.k32", "neisseria_gonorrhoeae.pangenome.k32", \
+    #"streptococcus_pneumoniae-large",  \
+    "spneumo_pangenome-616.k63", "escherichia_coli.k61", "sars-cov-2.590k.k63", \
+    "human", "minikraken4GB", "minikraken8GB"]
+#GENOMES = ["sars-cov-2.590k.k63"]
+
+# COMPRESSION FOR MASK (for superstrings and maskedu superstrings, we just use xz; xz is slightly better than bzip2 on the human genome, at least for some values of k)
+# NOTE: we assume xz is always among the compression algs.
+COMPRESSION_ALGS = {
+    "xz": "xz -9 -T 10",
+    "rrr": "../../scripts/rrr",
+    "bzip": "bzip2 -9",
+    "EliasFano": "../../scripts/EliasFano",
+    #"gzip": "gzip -9",
+    #"zip": "zip -9",
+    #"lzop": "lzop -9"
+}
+
+def get_compression_alg(wildcards):
+    return COMPRESSION_ALGS[wildcards.C]
+
+if config["testing"]:
+    D_VALS = [1]
+    K_VALS = [10]
+    GENOMES = ["spneumoniae", "spneumoniae-pangenome"]
+    testing_suffix = "__test"
+else:
+    testing_suffix = ""
+
+FILES_MISSING = []
+
+### All combination of params to be tested
+prefs_S_comp = set()
+prefs_SM_comp = set()
+prefs_SMC_comp = set()
+for g in GENOMES:
+    # HACK to run human genome and minikrakens for different values of k than bacterial pangenomes; now also limit mask optimization
+    if g == "human":
+        K_VALS_MOD = K_VALS_HG
+        M_ALGS_FIN = M_ALGS_HG
+    elif g == "minikraken4GB" or g == "minikraken8GB":
+        K_VALS_MOD = K_VALS_KRAK
+        M_ALGS_FIN = M_ALGS_KRAK
+    elif g == "spneumo_pangenome-616.k63" or g == "escherichia_coli.k61": # PV the following for all values of k: g == "sars-cov-2.590k.k63":
+        K_VALS_MOD = [61]
+        M_ALGS_FIN = M_ALGS
+    elif g == "yeast" or g == "spneumoniae" or g == "sars-cov-2.590k.k63":
+        K_VALS_MOD = K_VALS.copy()
+        K_VALS_MOD.append(61)
+        M_ALGS_FIN = M_ALGS
+    else:
+        K_VALS_MOD = K_VALS
+        M_ALGS_FIN = M_ALGS
+    for S in S_ALGS:
+        for k in K_VALS_MOD:
+            # here we can remove unwanted combinations / replace non-sense combinations of params
+            D_VALS_FIN = filter(lambda d: d < k, D_VALS) # filter out d larger than k; only relevant when running for large values of d      
+            if g == "minikraken8GB":
+                D_VALS_FIN = D_VALS_KRAK8
+            if S in ["global", "streaming", "globalAC"]:
+                D_VALS_FIN = ["na"]
+            for d in D_VALS_FIN:
+                # three versions of prefixes (without and with mask opt, the latter with and without compression alg)
+                prefs_S_comp.add(f"{g}.S_{S}.k_{k}.d_{d}")
+                for M in M_ALGS_FIN:
+                    # PV: tmp: check that mask optimization was successfully done
+                    if g == "minikraken8GB" and M == "runs" and S == "local" and (d == 1 or d == 2):
+                        continue
+                    f = MS_DIR+f"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz"
+                    if not os.path.exists(f):
+                        print(f"missing file {f}")
+                        FILES_MISSING.append(f)
+                        #if g == "minikraken4GB" or g == "minikraken8GB" or g == "human": # PV: only runsapprox missing for local in some cases
+                        continue
+                    #else:
+                    #    continue
+                    prefs_SM_comp.add(f"{g}.S_{S}.k_{k}.d_{d}.M_{M}")
+                    for C in COMPRESSION_ALGS:
+                        prefs_SMC_comp.add(f"{g}.S_{S}.k_{k}.d_{d}.M_{M}.C_{C}")
+
+file = open('files-missing.txt','w')
+for pref in FILES_MISSING:
+	file.write(pref+"\n")
+file.close()
+
+
+
+prefs_S_comp = sorted(list(prefs_S_comp))
+prefs_SM_comp = sorted(list(prefs_SM_comp))
+prefs_SMC_comp = sorted(list(prefs_SMC_comp))
+
+
+#print(f"Prefs S: {prefs_S_comp}")
+#print(f"Prefs SM: {prefs_SM_comp}")
+#print(f"Prefs SMC: {prefs_SMC_comp}")
+file = open('prefs.txt','w')
+for pref in prefs_SMC_comp:
+	file.write(pref+"\n")
+file.close()
+
+################################################################
+
+
+rule all:
+    input:
+        f"99_results/masked_superstrings_properties.{HOSTNAME}{testing_suffix}.tsv",
+        f"99_results/camel_memtime.{HOSTNAME}{testing_suffix}.tsv",
+        f"99_results/maskopt_memtime.{HOSTNAME}{testing_suffix}.tsv",
+
+
+#####################################################################################################
+# AGGREGATE STATISTICS
+#####################################################################################################
+
+
+rule aggregate_masked_superstrings_properties:
+    output:
+        tsv=f"99_results/masked_superstrings_properties.{HOSTNAME}{testing_suffix}.tsv",
+    input:
+        [f"12_masked_superstrings_properties/{HOSTNAME}/{p}.tsv" for p in prefs_SMC_comp],
+    params:
+        tsv=f"99_results/masked_superstrings_properties.{HOSTNAME}{testing_suffix}.tsv.tmp",
+    priority: 50
+    shell:
+        """
+        cat {input} \\
+            | awk '!seen[$0]++' \\
+            | tee {params.tsv} \\
+            | ./sort_output_tsv.py \\
+            > {output.tsv}
+        """
+
+
+rule aggregate_maskopt_memtime_stats:
+    output:
+        tsv=f"99_results/maskopt_memtime.{HOSTNAME}{testing_suffix}.tsv",
+    input:
+        [f"11_maskopt_memtime/{HOSTNAME}/{p}.tsv" for p in prefs_SM_comp],
+    params:
+        tsv=f"99_results/maskopt_memtime.{HOSTNAME}{testing_suffix}.tsv.tmp",
+    priority: 50
+    shell:
+        """
+        cat {input} \\
+            | awk '!seen[$0]++' \\
+            | tee {params.tsv} \\
+            | ./sort_output_tsv.py \\
+            > {output.tsv}
+        """
+
+
+rule aggregate_camel_memtime_stats:
+    output:
+        tsv=f"99_results/camel_memtime.{HOSTNAME}{testing_suffix}.tsv",
+    input:
+        [f"02_camel_memtime/{HOSTNAME}/{p}.tsv" for p in prefs_S_comp],
+    params:
+        tsv=f"99_results/camel_memtime.{HOSTNAME}{testing_suffix}.tsv.tmp",
+    priority: 50
+    shell:
+        """
+        cat {input} \\
+            | awk '!seen[$0]++' \\
+            | tee {params.tsv} \\
+            | ./sort_output_tsv.py \\
+            > {output.tsv}
+        """
+
+
+#####################################################################################################
+# COMPUTE STATS OF MASK SUPERSTRINGS
+#####################################################################################################
+
+
+# Collect size stats
+# NOTE: we assume xz is always among the compression algs.
+rule make_size_stats:
+    output:
+        sizes=f"12_masked_superstrings_properties/{HOSTNAME}/"
+        + "{g}.S_{S}.k_{k}.d_{d}.M_{M}.C_{C}.tsv",
+    input:
+        txt1=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.superstring.txt.xz",
+        txt2=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.mask.txt.{C}",
+        txt2xz=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.mask.txt.xz",
+        txt3=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz",
+        txt4=MS_DIR+"{g}.k_{k}.kmerCount",
+    params:
+        pref="{g}.S_{S}.k_{k}.d_{d}.M_{M}.C_{C}",
+    priority: 50
+    shell:
+        """
+        (
+        #1
+        printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s' genome S_alg k d M_alg M_compr_alg
+        printf '\\t'
+
+        #2
+        printf '%s\\t%s\\t%s\\t%s\\t%s' kmer_count l o z r
+        printf '\\t'
+
+        #3
+        printf '%s\\t%s\\t%s\\t%s' S_xz_bytes M_compr_bytes enc1_compr_bytes enc2_xz_bytes
+        printf '\\t'
+
+        #4
+        printf '%s' pref
+        printf '\\n'
+
+
+        ##################################
+
+        #1
+        printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s' \\
+            {wildcards.g} \\
+            {wildcards.S} \\
+            {wildcards.k} \\
+            {wildcards.d} \\
+            {wildcards.M} \\
+            {wildcards.C}
+        printf '\\t'
+
+        #2
+        printf '%d\\t%d\\t%d\\t%d\\t%d' \\
+            $(cat {input.txt4} | xargs echo) \\
+            $(xzcat {input.txt2xz} | wc -c) \\
+            $(xzcat {input.txt2xz} | perl -pe 's/0//g' | wc -c) \\
+            $(xzcat {input.txt2xz} | perl -pe 's/1//g' | wc -c) \\
+            $(xzcat {input.txt2xz} | perl -pe 's/1+/1/g' | perl -pe 's/0//g' | wc -c)
+        printf '\\t'
+
+        #3
+        printf '%d\\t%d\\t%d\\t%d' \\
+            $(cat {input.txt1} | wc -c) \\
+            $(cat {input.txt2} | wc -c) \\
+            $(cat {input.txt1} {input.txt2} | wc -c) \\
+            $(cat {input.txt3} | wc -c)
+
+        printf '\\t'
+
+        #4
+        printf '%s' \\
+            {params.pref}
+        printf '\\n'
+
+        ) > {output.sizes}
+        """
+
+# HACK TO AVOID COUNTING K-MERS MORE TIMES: we assume that global is always run for every genome and k
+rule count_kmers:
+    output:
+        txt=MS_DIR+"{g}.k_{k}.kmerCount",
+    input:
+        txt=MS_DIR+"{g}.S_global.k_{k}.d_na.M_default.maskedSuperstring.txt",
+    priority: 50
+    shell:
+        """
+        ../../scripts/count_kmers.py -k {wildcards.k} -t -p {input.txt} > {output.txt}
+        """
+
+# NOTE: one can now remove M_{M} as mask optimization doesn't change superstring; however, when splicing is implemented, the superstring may change as well
+rule extract_and_compress_superstring:
+    output:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.superstring.txt.xz",
+    input:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz",
+    priority: 50
+    shell:
+        """
+        xzcat {input.txt} \\
+            | tr a-z A-Z \\
+            | xz -9 -T10 \\
+            > {output.txt}
+        """
+        
+rule extract_and_compress_mask:
+    output:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.mask.txt.{C}",
+    input:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz",
+    params:
+        compr=lambda wildcards: get_compression_alg(wildcards)
+    priority: 50
+    shell:
+        """
+        xzcat {input.txt} \\
+            | tr 'acgt' '0000' \\
+            | tr 'ACGT' '1111' \\
+            | {params.compr} \\
+            > {output.txt}
+        """
+        
+        # PV: hopefully not needed now
+        #NL=$(xzcat "{input.txt}" | wc -l | xargs echo)
+        #if [ "$NL" -ne 0 ]; then
+        #    >&2 echo "ERROR: Newline characters in the masked superstring file {input.txt} ($NL NLs found)"
+        #    exit 1
+        #fi
+
+
+#####################################################################################################
+# REOPTIMIZE MASKS
+#####################################################################################################
+
+
+rule extract_default_masked_superstring:
+    output:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_default.maskedSuperstring.txt",
+        txtxz=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_default.maskedSuperstring.txt.xz",
+        log0=f"11_maskopt_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.M_default.log",
+    input:
+        fa=CAMEL_OUTPUT_DIR+"{g}.S_{S}.k_{k}.d_{d}.fa.gz",
+    priority: 100
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" "\\
+        gzip -d -c {input.fa} \\
+            | tail -n +2 \\
+            | perl -pe 's/\n//g'" \\
+            > {output.txt}
+        xz -9 -T 10 --stdout {output.txt} >{output.txtxz}
+        """
+        # for some large files (computed from HG), seqtk seq doesn't output anything ... trying gzip -d -c
+        # `grep -v '^>'` is way too slow for omitting lines starting >; since camel output has just two lines, I'm using `tail -n +2` (not `tail -n 1` which is very slow as well)
+
+
+#for k < 32
+rule mask_optimize:
+    output:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz",
+        log0=f"11_maskopt_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.M_{M}.log",
+    input:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_default.maskedSuperstring.txt",
+    wildcard_constraints:
+        M='runs|ones|zeros|runsapprox',
+        k='|'.join([f"{kk}" for kk in range(1,32)]),
+    params:
+        camel=CAMEL,
+        tmpoutput=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt",
+    resources:
+        mem_mb=50000
+    priority: 50
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.camel} optimize -c -k {wildcards.k} -p {input.txt} -a {wildcards.M}" \\
+            | perl -pe 's/\n//g' \\
+            | xz -9 -T 10 \\
+            > {output.txt}
+        """
+        ##############
+        # PV: THE FOLLOWING doesn't work because more jobs are running with the same tmpin file...
+        # tmpin=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_default.maskedSuperstring.txt",
+        #xzcat {input.txt} >{params.tmpin} .... rm {params.tmpin}
+        #############
+        # PV: NOTE: tail -n +2 should not be run now as kmercamel 
+        #############
+        #<(zcat {input.txt}) -- DOESN'T WORK in kmercamel as the camel currently needs to make two passes over the input
+
+rule mask_optimize_large_k:
+    output:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt.xz",
+        log0=f"11_maskopt_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.M_{M}.log",
+    input:
+        txt=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_default.maskedSuperstring.txt",
+    wildcard_constraints:
+        M='runs|ones|zeros|runsapprox',
+        k='|'.join([f"{kk}" for kk in range(32,64)]),
+    params:
+        camel=CAMEL_LARGE,
+        tmpoutput=MS_DIR+"{g}.S_{S}.k_{k}.d_{d}.M_{M}.maskedSuperstring.txt",
+    resources:
+        #large_threads = 1,
+        mem_mb=50000
+    priority: 50
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.camel} optimize -c -k {wildcards.k} -p {input.txt} -a {wildcards.M}" \\
+            | perl -pe 's/\n//g' \\
+            | xz -9 -T 10 \\
+            > {output.txt}
+        """           
+
+rule reformat_maskopt_memtime_logs:
+    output:
+        f"11_maskopt_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.M_{M}.tsv",
+    input:
+        f"11_maskopt_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.M_{M}.log",
+    params:
+        pref="{g}.S_{S}.k_{k}.d_{d}.M_{M}",
+    priority: 50
+    shell:
+        """
+        (
+            printf 'pref\\tgenome\\tS_alg\\tk\\td\\tM_alg\\t'
+
+            cat {input} \\
+                | grep real
+
+            printf '%s\\t%s\\t%s\\t%d\\t%s\\t%s\\t' \\
+                {params.pref} \\
+                {wildcards.g} \\
+                {wildcards.S} \\
+                {wildcards.k} \\
+                {wildcards.d} \\
+                {wildcards.M} \\
+            ;
+
+            cat {input} \\
+                | grep -Ev '(real|#)'
+
+        ) > {output}
+        """
+
+
+#####################################################################################################
+# RUN CAMEL AND PROCESS ITS OUTPUTS
+#####################################################################################################
+
+# TODO: Once Camel can read from the standard input (passed by -), xzcat should be
+#       moved before and piped in (to remove it from the memtime measurements)
+rule run_kmer_camel:
+    output:
+        fa=CAMEL_OUTPUT_DIR+"{g}.S_{S}.k_{k}.d_{d}.fa.gz",
+        log0=f"02_camel_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.log",
+    input:
+        fa="{g}.fa.xz",
+        hw=f"00_hw_info/{HOSTNAME}.txt",
+    wildcard_constraints:
+        k='|'.join([f"{kk}" for kk in range(1,32)]),
+    params:
+        d_param=lambda wildcards: f"-d {wildcards.d}" if wildcards.d != "na" else "",
+        camel=CAMEL,
+    resources:
+        AC_threads=lambda wildcards: int("AC" in wildcards.S),
+        mem_mb=50000
+    priority: 100
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.camel} -c -k {wildcards.k} {params.d_param} -p <(xzcat {input.fa}) -a {wildcards.S}" \\
+            | gzip -1 \\
+            > {output.fa}
+        """
+
+rule run_kmer_camel_large_k:
+    output:
+        fa=CAMEL_OUTPUT_DIR+"{g}.S_{S}.k_{k}.d_{d}.fa.gz",
+        log0=f"02_camel_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.log",
+    input:
+        fa="{g}.fa.xz",
+        hw=f"00_hw_info/{HOSTNAME}.txt",
+    wildcard_constraints:
+        k='|'.join([f"{kk}" for kk in range(32,63)]),
+    params:
+        d_param=lambda wildcards: f"-d {wildcards.d}" if wildcards.d != "na" else "",
+        camel=CAMEL_LARGE,
+    resources:
+        AC_threads=lambda wildcards: int("AC" in wildcards.S),
+        mem_mb=50000
+        #large_threads = 1,
+    priority: 100
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.camel} -c -k {wildcards.k} {params.d_param} -p <(xzcat {input.fa}) -a {wildcards.S}" \\
+            | gzip -1 \\
+            > {output.fa}
+        """
+
+rule reformat_camel_memtime_logs:
+    output:
+        f"02_camel_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.tsv",
+    input:
+        f"02_camel_memtime/{HOSTNAME}/" + "{g}.S_{S}.k_{k}.d_{d}.log",
+    params:
+        pref="{g}.S_{S}.k_{k}.d_{d}",
+    priority: 50
+    shell:
+        """
+        (
+            printf 'pref\\tgenome\\tS_alg\\tk\\td\\t'
+
+            cat {input} \\
+                | grep real
+
+            printf '%s\\t%s\\t%s\\t%d\\t%s\\t' \\
+                {params.pref} \\
+                {wildcards.g} \\
+                {wildcards.S} \\
+                {wildcards.k} \\
+                {wildcards.d} \\
+            ;
+
+            cat {input} \\
+                | grep -Ev '(real|#)'
+
+        ) > {output}
+        """
+
+
+#####################################################################################################
+# GET HW INFO ABOUT THE CURRENT COMPUTER
+#####################################################################################################
+
+
+rule add_hw_info:
+    output:
+        hw=f"00_hw_info/{HOSTNAME}.txt",
+    priority: 50
+    shell:
+        """
+        ../../scripts/print_hw_info.sh > {output.hw}
+        """

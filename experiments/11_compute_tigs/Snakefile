@@ -1,0 +1,194 @@
+import socket
+
+shell.prefix("set -euo pipefail")
+
+
+configfile: "config.yaml"
+
+
+HOSTNAME = socket.gethostname()
+if HOSTNAME == "":
+    HOSTNAME = "NA"
+print(HOSTNAME)
+
+BCALM = "./bcalm/build/bcalm"
+PROPHASM = "./prophasm/prophasm"
+MATCHTIGS = "matchtigs" # matchtigs program
+MATCHTIGS_THREADS = "6" # num threads for matchtigs program
+BLOSSOM5 = "./blossom5/blossom5"
+
+K_VALS = list(range(9, 24, 2)) #[18, 31]
+K_VALS.append(31)
+K_VALS.append(61)
+#K_VALS = [41,51,61] #PV: only for human genome; for pangenomes, we'd need to recompute unitigs (currently they have k = 32)
+ALGS = ["matchtigs", "eulertigs", "greedytigs", "prophasm"] #, , , "unitigs",  # PV: pathtigs not needed IMHO (equal to simplitigs)
+#GENOMES = ["yeast", "sars-cov-2-pangenome", "escherichia_coli.k32", "salmonella_enterica.k32", "neisseria_gonorrhoeae.pangenome.k32", "streptococcus_pneumoniae-large", "spneumoniae", "spneumo-pangenome"] # "human"
+GENOMES = ["yeast", "sars-cov-2-pangenome", "escherichia_coli.k32", "spneumoniae", "spneumo-pangenome"] # "human"
+MEMORY_LIMIT_KB = 60*1000*1000 # 60 GB
+TIME_LIMIT_H = 10 # 10 hours
+
+# # human setup
+# GENOMES = ["human"]
+# MEMORY_LIMIT_KB = 200*1000*1000 # 200 GB
+# TIME_LIMIT_H = 24 # 24 hours
+
+# minikraken setup -- NOTE (PV): cannot compute greedytigs or eulertigs for minikraken4GB due to memory issues (exceeded 150 GB)
+#GENOMES = ["minikraken4GB"]
+####GENOMES = ["minikraken8GB"]
+#K_VALS = [31]
+# MEMORY_LIMIT_KB = 200*1000*1000 # 200 GB
+# TIME_LIMIT_H = 72 # 72 hours
+
+
+
+
+if config["testing"]:
+    K_VALS = [16]
+    testing_suffix = "__test"
+else:
+    testing_suffix = ""
+
+
+### All combination of params to be tested
+prefs0 = set()
+for g in GENOMES:
+    for k in K_VALS:
+        for a in ALGS:
+            if a == "prophasm" and k > 32: # prophasm needs k <= 32
+                continue
+            if os.path.exists(f"/nfs/archive/vesely/output_fastas/{g}.a_{a}.k_{k}.fa.xz"): # do not recompute anything
+                continue
+            prefs0.add(f"{g}.a_{a}.k_{k}")
+prefs = sorted(list(prefs0))
+print(f"Prefs: {prefs}")
+
+def append_to_list(my_list, item):
+    new_list = my_list.copy()
+    new_list.append(item)
+    return new_list
+
+rule all:
+    input:
+        [f"/nfs/archive/vesely/output_fastas/{p}.fa.xz" for p in prefs],
+
+rule genome_gz: # to avoid repeated xzcat & gzip
+    input:
+        xz="{g}.fa.xz",
+    output:
+        gz="{g}.fa.gz",
+    shell:
+        """
+        xzcat {input.xz} | gzip >{output.gz}
+        """ 
+
+# TODO: no time or memory limits now; also would be nice to try GGCAT
+rule run_unitigs:
+    input:
+        fa="{g}.fa.gz",
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    output:
+        fa="/nfs/archive/vesely/output_fastas/{g}.a_unitigs.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.a_unitigs.k_{k}.log",
+    params:
+        bcalm=BCALM,
+        tmpoutput="output_fastas/{g}.a_unitigs.k_{k}.fa",
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.bcalm} -kmer-size {wildcards.k} -in {input.fa} -minimizer-size 12 -abundance-min 1 -out {params.tmpoutput}"
+            # FIXME: FOR SMALL k NEED TO ADD "-minimizer-size 5"; TODO: compute based on k
+        
+        rm -f {params.tmpoutput}.unitigs.fa.glue.*
+        
+        mv {params.tmpoutput}.unitigs.fa {params.tmpoutput}
+        #mv {output.fa}.unitigs.fa {output.fa}
+
+        xz -0 -T 0 {params.tmpoutput}
+        mv {params.tmpoutput}.xz {output.fa}
+        """
+
+
+rule run_prophasm:
+    input:
+        fa="{g}.fa.gz",
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    output:
+        fa="/nfs/archive/vesely/output_fastas/{g}.a_prophasm.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.a_prophasm.k_{k}.log",
+    params:
+        prophasm=PROPHASM,
+        tmpoutput="output_fastas/{g}.a_prophasm.k_{k}.fa",
+        time_limit_h = TIME_LIMIT_H,
+        mem_limit_kb = MEMORY_LIMIT_KB,
+    shell:
+        """
+        (ulimit -v {params.mem_limit_kb}; timeout -v {params.time_limit_h}h ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.prophasm} -k {wildcards.k} -i {input.fa} -o {params.tmpoutput}")
+        
+        xz -0 -T 0 {params.tmpoutput}
+        mv {params.tmpoutput}.xz {output.fa}
+
+        """
+
+rule run_matchtigs:
+    input:
+        fa="/nfs/archive/vesely/output_fastas/{g}.a_unitigs.k_{k}.fa.xz",
+        #fa="/nfs/archive/vesely/output_fastas/{g}.a_unitigs.k_{k}.fa",
+    output:
+        fa="/nfs/archive/vesely/output_fastas/{g}.a_{a}.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.a_{a}.k_{k}.log",
+    wildcard_constraints:
+        a = '|'.join(append_to_list([alg for alg in ALGS if (alg != 'unitigs' and alg != 'prophasm')], "_")) # appending "_" as if ALGS contains only unitigs or prophasm, constraint becomes empty
+    params:
+        tmpoutput="output_fastas/{g}.a_{a}.k_{k}.fa",
+        matchtigs=MATCHTIGS,
+        threads=MATCHTIGS_THREADS,
+        blossom5=BLOSSOM5,
+        time_limit_h = TIME_LIMIT_H,
+        mem_limit_kb = MEMORY_LIMIT_KB,
+    shell:
+        """
+        (ulimit -v {params.mem_limit_kb}; timeout -v {params.time_limit_h}h ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.matchtigs} -k {wildcards.k} -t {params.threads} --bcalm-in <(xzcat {input.fa}) --{wildcards.a}-fa-out {params.tmpoutput} --blossom5-command {params.blossom5}")
+
+        rm -f {params.tmpoutput}.minimalperfectmatching*
+        
+        xz -0 -T 20 {params.tmpoutput}
+        mv {params.tmpoutput}.xz {output.fa}
+        """
+
+
+rule reformat_time_log:
+    input:
+        f"logs/{HOSTNAME}/" + "{g}.a_{a}.k_{k}.log",
+    output:
+        f"logs/{HOSTNAME}/" + "{g}.a_{a}.k_{k}.tsv",
+    priority: 50
+    shell:
+        """
+        (
+            printf 'genome\tmethod\tk\td\t'
+
+            cat {input} \\
+                | grep real
+
+            printf '%s\t%s\t%d\t%s\t' \\
+                {wildcards.g} \\
+                {wildcards.a} \\
+                {wildcards.k}
+
+            cat {input} \\
+                | grep -Ev '(real|#)'
+
+        ) > {output}
+        """
+
+
+rule hw:
+    output:
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    priority: 50
+    shell:
+        """
+        ../../scripts/print_hw_info.sh > {output.hw}
+        """

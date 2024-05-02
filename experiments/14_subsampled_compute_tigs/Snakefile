@@ -1,0 +1,166 @@
+import socket
+
+shell.prefix("set -euo pipefail")
+
+INPUT_DIR = "../../data/subsampled/"
+OUTPUT_DIR = "/nfs/archive/vesely/19-output_fastas/"
+
+configfile: "config.yaml"
+
+
+HOSTNAME = socket.gethostname()
+if HOSTNAME == "":
+    HOSTNAME = "NA"
+print(HOSTNAME)
+
+BCALM = "../09_spneumo_matchtigs_eurlertigs/bcalm/build/bcalm"
+PROPHASM = "../09_spneumo_matchtigs_eurlertigs/prophasm/prophasm"
+MATCHTIGS = "matchtigs" # matchtigs program
+MATCHTIGS_THREADS = "3" # num threads for matchtigs program
+BLOSSOM5 = "../09_spneumo_matchtigs_eurlertigs/blossom5/blossom5"
+
+K_VALS = [31] # only 
+R_VALS = ["0.000000001", "0.0001", "0.001", "0.01", "0.05", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0"]
+ALGS = ["prophasm", "greedytigs", "eulertigs"] # "matchtigs",   "unitigs", # PV: pathtigs not needed IMHO (equal to simplitigs)
+GENOMES = ["escherichia_coli.k32", "spneumo_pangenome_k32", "sars-cov-2_pangenome_k32"]
+
+
+if config["testing"]:
+    K_VALS = [11]
+    R_VALS = ["0.01"]
+    testing_suffix = "__test"
+else:
+    testing_suffix = ""
+
+
+### All combination of params to be tested
+prefs0 = set()
+for g in GENOMES:
+    for k in K_VALS:
+        for a in ALGS:
+            for r in R_VALS:
+                prefs0.add(f"{g}.r_{r}.a_{a}.k_{k}")
+prefs = sorted(list(prefs0))
+print(f"Prefs: {prefs}")
+
+
+def append_to_list(my_list, item):
+    new_list = my_list.copy()
+    new_list.append(item)
+    return new_list
+
+rule all:
+    input:
+        [f"{OUTPUT_DIR}{p}.fa.xz" for p in prefs],
+
+rule genome_gz: # to avoid repeated xzcat & gzip
+    input:
+        xz=INPUT_DIR+"{g}_subsampled_k{k}_r{r}.fa.xz",
+    output:
+        gz="01_gzip_fastas/{g}_k{k}_r{r}.fa.gz",
+    shell:
+        """
+        xzcat {input.xz} | gzip >{output.gz}
+        """ 
+
+rule run_unitigs:
+    input:
+        fa="01_gzip_fastas/{g}_k{k}_r{r}.fa.gz",
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    output:
+        fa=OUTPUT_DIR+"{g}.r_{r}.a_unitigs.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.r_{r}.a_unitigs.k_{k}.log",
+    params:
+        bcalm=BCALM,
+        tmpoutput=OUTPUT_DIR+"{g}.r_{r}.a_unitigs.k_{k}.fa",
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.bcalm} -kmer-size {wildcards.k} -in {input.fa} -abundance-min 1 -out {params.tmpoutput}"
+        
+        mv {params.tmpoutput}.unitigs.fa {params.tmpoutput}
+
+        xz -9 {params.tmpoutput}
+
+        rm -f {params.tmpoutput}.unitigs.fa.glue.*
+
+        """
+
+rule run_prophasm:
+    input:
+        fa="01_gzip_fastas/{g}_k{k}_r{r}.fa.gz",
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    output:
+        fa=OUTPUT_DIR+"{g}.r_{r}.a_prophasm.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.r_{r}.a_prophasm.k_{k}.log",
+    params:
+        prophasm=PROPHASM,
+        tmpoutput=OUTPUT_DIR+"{g}.r_{r}.a_prophasm.k_{k}.fa",
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.prophasm} -k {wildcards.k} -i {input.fa} -o {params.tmpoutput}"
+        
+        xz -9 {params.tmpoutput}
+
+        """
+        
+rule run_matchtigs:
+    input:
+        fa=OUTPUT_DIR+"{g}.r_{r}.a_unitigs.k_{k}.fa.xz",
+    output:
+        fa=OUTPUT_DIR+"{g}.r_{r}.a_{a}.k_{k}.fa.xz",
+        log0=f"logs/{HOSTNAME}/" + "{g}.r_{r}.a_{a}.k_{k}.log",
+    wildcard_constraints:
+        a = '|'.join(append_to_list([alg for alg in ALGS if (alg != 'unitigs' and alg != 'prophasm')], "_")) # appending "_" as if ALGS contains only unitigs or prophasm, constraint becomes empty
+    params:
+        tmpoutput=OUTPUT_DIR+"{g}.r_{r}.a_{a}.k_{k}.fa",
+        matchtigs=MATCHTIGS,
+        threads=MATCHTIGS_THREADS,
+        blossom5=BLOSSOM5,
+    shell:
+        """
+        ../../scripts/benchmark.py --log "{output.log0}" \\
+            "{params.matchtigs} -k {wildcards.k} -t {params.threads} --bcalm-in <(xzcat {input.fa}) --{wildcards.a}-fa-out {params.tmpoutput} --blossom5-command {params.blossom5}"
+
+        xz -9 {params.tmpoutput}
+            
+        rm -f {params.tmpoutput}.minimalperfectmatching*
+        """
+
+
+rule reformat_time_log:
+    input:
+        f"logs/{HOSTNAME}/" + "{g}.r_{r}.a_{a}.k_{k}.log",
+    output:
+        f"logs/{HOSTNAME}/" + "{g}.r_{r}.a_{a}.k_{k}.tsv",
+    priority: 50
+    shell:
+        """
+        (
+            printf 'genome\trate\tmethod\tk\td\t'
+
+            cat {input} \\
+                | grep real
+
+            printf '%s\t%s\t%d\t%s\t' \\
+                {wildcards.g} \\
+                {wildcards.r} \\
+                {wildcards.a} \\
+                {wildcards.k}
+
+            cat {input} \\
+                | grep -Ev '(real|#)'
+
+        ) > {output}
+        """
+
+
+rule hw:
+    output:
+        hw=f"logs/{HOSTNAME}/hw.txt",
+    priority: 50
+    shell:
+        """
+        ../../scripts/print_hw_info.sh > {output.hw}
+        """

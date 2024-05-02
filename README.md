@@ -75,6 +75,28 @@ Indexing, membership queries, and set operations on k-mer sets represented via f
 
 For generating negative membership queries to these datasets, we used a 2MB prefix of the FASTA file for chromosome 1 of *H. sapiens* genome (`GRCh38.p14 Primary Assembly`, `NC_000001.11`), downloaded from [NCBI](https://www.ncbi.nlm.nih.gov); see  [data/GRCh38.p14.chromosome1.prefix2M.fasta.xz](data/GRCh38.p14.chromosome1.prefix2M.fasta.xz)
 
+### Reproducing experimental results
+
+To download the used tools, run the following:
+
+```bash
+git submodule update --init
+
+```
+
+Besides standard Linux programs the experimental pipeline requires [Snakemake](https://snakemake.readthedocs.io/en/stable/) and [seqtk](https://github.com/lh3/seqtk)).
+
+All the experimental pipelines are located in the `experiments` directory.
+There are several subdirectories with individual experimental pipelines. The folders prefixed with `1*` correspond to experiments regarding storing masked superstrings (Chapters 2 and 3 of the thesis) and these prefixed with `2*` correspond to experiments on indexing (Chapters 4 and 5).
+The individual pipelines are the following:
+- `01_compute_tigs`/`04_subsampled_compute_tigs` - computation of unitigs (required by matchtigs), simplitigs, eulertigs and greedy/optimal matchtigs; for not subsampled / subsampled data
+- `02_optimize_tigs`/`05_subsampled_optimize_tigs` - mask optimization of previously computed *tigs and compression with different algorithms; for not subsampled / subsampled data
+- `03_compute_camel`/`05_subsampled_compute_camel` - computation and optimization of masked superstrings with KmerCamel🐫 and compression with different algorithms; for not subsampled / subsampled data
+- `07_collect_results` - aggregation of data from previous pipelines
+
+Each pipeline can be run by command `make` in the corresponding directory. For some `make test` can be used to check if everything is set up correctly. Pipelines should be run from smaller numbers to larger.
+
+
 
 ## Figures + supplementary plots
 
