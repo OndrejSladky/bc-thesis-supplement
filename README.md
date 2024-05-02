@@ -59,8 +59,8 @@ Indexing, membership queries, and set operations on k-mer sets represented via f
   - *k*-mers were collected and stored in the form of unitigs with $k = 32$ and $k=64$ (BCALM 2, version v2.2.3, git commit e57cc46)
   - not provided in this repository due to file size (ask if you wish to get this dataset)
 * *SARS-CoV-2* pan-genome - downloaded from [GISAID](https://gisaid.org/)
-  (access upon registration) on Jan 25, 2023 (GISAID version 2023_01_23,
-  14,682,066 genomes, 430 Gbp)
+  (access upon registration), 
+  590k genomes
   - *k*-mers were collected using JellyFish 2 (v2.2.10, 11,701,570 32-mers) and
     stored in the form of simplitigs (ProphAsm v0.1.1, k=32, NS: 345,866, CL:
     22,423,416 bp, #kmers: 11,701,570 32-mers)
