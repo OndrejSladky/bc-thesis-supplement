@@ -94,10 +94,12 @@ Besides standard Linux programs the experimental pipeline requires [Snakemake](h
 All the experimental pipelines are located in the `experiments` directory.
 There are several subdirectories with individual experimental pipelines. The folders prefixed with `1*` correspond to experiments regarding storing masked superstrings (Chapters 2 and 3 of the thesis) and these prefixed with `2*` correspond to experiments on indexing (Chapters 4 and 5).
 The individual pipelines are the following:
-- `01_compute_tigs`/`04_subsampled_compute_tigs` - computation of unitigs (required by matchtigs), simplitigs, eulertigs and greedy/optimal matchtigs; for not subsampled / subsampled data
-- `02_optimize_tigs`/`05_subsampled_optimize_tigs` - mask optimization of previously computed *tigs and compression with different algorithms; for not subsampled / subsampled data
-- `03_compute_camel`/`05_subsampled_compute_camel` - computation and optimization of masked superstrings with KmerCamel🐫 and compression with different algorithms; for not subsampled / subsampled data
+- `11_compute_tigs`/`14_subsampled_compute_tigs` - computation of unitigs (required by matchtigs), simplitigs, eulertigs and greedy/optimal matchtigs; for not subsampled / subsampled data
+- `12_optimize_tigs`/`15_subsampled_optimize_tigs` - mask optimization of previously computed *tigs and compression with different algorithms; for not subsampled / subsampled data
+- `13_compute_camel`/`16_subsampled_compute_camel` - computation and optimization of masked superstrings with KmerCamel🐫 and compression with different algorithms; for not subsampled / subsampled data
 - `07_collect_results` - aggregation of data from previous pipelines
+- `21_build_and_query_memtime` - contains additional sub-pipelines for build and query time vs. memory experiments on indexes
+- `22` - experiment on set operations using FMSI
 
 Each pipeline can be run by command `make` in the corresponding directory. For some `make test` can be used to check if everything is set up correctly. Pipelines should be run from smaller numbers to larger.
 
