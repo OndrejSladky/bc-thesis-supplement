@@ -28,6 +28,23 @@ Details of citing the thesis are coming soon!
 
 If you use masked superstrings or KmerCamel🐫 please cite also our paper on masked superstrings:
 
+> Ondřej Sladký, Pavel Veselý, and Karel Břinda: Masked superstrings as a unified framework for textual *k*-mer set representations. *bioRxiv* 2023.02.01.526717, 2023.
+[https://doi.org/10.1101/2023.02.01.526717](https://doi.org/10.1101/2023.02.01.526717)
+
+```
+@article{sladky2023-masked-superstrings,
+  title   = { Masked superstrings as a unified framework for textual $k$-mer set representations },
+  author  = { Sladk{\'y}, Ond{\v r}ej and Vesel{\'y}, Pavel and B{\v r}inda, Karel },
+  journal = { bioRxiv },
+  volume  = { 2023.02.01.526717 },
+  year    = { 2023 },
+  doi     = { 10.1101/2023.02.01.526717 }
+}
+```
+
+
+If you use $f$-masked superstrings, FMS-index or FMSI, please also cite our paper on $f$-masked superstrings:
+
 > Ondřej Sladký, Pavel Veselý, and Karel Břinda: Function-Assigned Masked Superstrings as a Versatile and Compact Data Type for *k*-Mer Sets.
 > *bioRxiv* 2024.03.06.583483, 2024. [https://doi.org/10.1101/2024.03.06.583483](https://doi.org/10.1101/2024.03.06.583483)
 
@@ -44,22 +61,6 @@ If you use masked superstrings or KmerCamel🐫 please cite also our paper on ma
 	journal = {bioRxiv}
 }
 
-```
-
-If you use $f$-masked superstrings, FMS-index or FMSI, please also cite our paper on $f$-masked superstrings:
-
-> Ondřej Sladký, Pavel Veselý, and Karel Břinda: Masked superstrings as a unified framework for textual *k*-mer set representations. *bioRxiv* 2023.02.01.526717, 2023.
-[https://doi.org/10.1101/2023.02.01.526717](https://doi.org/10.1101/2023.02.01.526717)
-
-```
-@article{sladky2023-masked-superstrings,
-  title   = { Masked superstrings as a unified framework for textual $k$-mer set representations },
-  author  = { Sladk{\'y}, Ond{\v r}ej and Vesel{\'y}, Pavel and B{\v r}inda, Karel },
-  journal = { bioRxiv },
-  volume  = { 2023.02.01.526717 },
-  year    = { 2023 },
-  doi     = { 10.1101/2023.02.01.526717 }
-}
 ```
 
 ## Methods
