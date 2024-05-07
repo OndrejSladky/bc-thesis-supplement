@@ -14,7 +14,7 @@
 
 ## Introduction
 
-This repository contains links to all the supplementary material for my bachelor's thesis, i.e., experimental pipelines and results and individual plots.
+This repository contains links to all the supplementary material for my bachelor's thesis [Masked Superstrings for Efficient $k$-Mer Set Representation and Indexing](https://doi.org/10.5281/zenodo.11076871), i.e., experimental pipelines and results and individual plots.
 
 The thesis is based on two arcitles, consider also visiting their respective supplementary repositories.
 
@@ -23,8 +23,18 @@ The thesis is based on two arcitles, consider also visiting their respective sup
 
 ### Citation
 
-Details of citing the thesis are coming soon!
+To cite the thesis, use the following:
 
+```
+@mastersthesis{sladky2024,
+    title     = { Masked Superstrings for Efficient $k$-Mer Set Representation and Indexing },
+    author    = { Sladk{\'y}, Ond{\v r}ej },
+    type      = { Bachelor's Thesis },
+    year      = { 2024 },
+    publisher = { Charles University },
+    doi       = { 10.5281/zenodo.11076871 }
+}
+```
 
 If you use masked superstrings or KmerCamel🐫 please cite also our paper on masked superstrings:
 
