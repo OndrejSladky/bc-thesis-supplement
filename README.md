@@ -14,7 +14,7 @@
 
 ## Introduction
 
-This repository contains links to all the supplementary material for my bachelor's thesis [Masked Superstrings for Efficient $k$-Mer Set Representation and Indexing](https://doi.org/10.5281/zenodo.11076871), i.e., experimental pipelines and results and individual plots.
+This repository contains links to all the supplementary material for my bachelor's thesis [Masked Superstrings for Efficient *k*-Mer Set Representation and Indexing](https://doi.org/10.5281/zenodo.11076871), i.e., experimental pipelines and results and individual plots.
 
 The thesis is based on two arcitles, consider also visiting their respective supplementary repositories.
 
