@@ -26,7 +26,7 @@ The thesis is based on two arcitles, consider also visiting their respective sup
 To cite the thesis, use the following:
 
 ```
-@mastersthesis{sladky2024,
+@mastersthesis{sladky2024-thesis,
     title     = { Masked Superstrings for Efficient $k$-Mer Set Representation and Indexing },
     author    = { Sladk{\'y}, Ond{\v r}ej },
     type      = { Bachelor's Thesis },
